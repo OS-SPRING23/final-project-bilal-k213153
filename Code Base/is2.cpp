@@ -1,73 +1,134 @@
 #include <iostream>
-#include <time.h>
-#include <pthread.h>
 #include <fstream>
-#define size 1000000
-#define thread_size 4 //change threads as needed
+#include <vector>
+#include <thread>
+#include <chrono>
+#include <time.h>
 
 using namespace std;
 
-int arr[size];
-
-void *insertion(void *arg)
+// Insertion sort function
+void insertionSort(vector<int> &arr, int start, int end)
 {
-    int start = (intptr_t)(arg);
-    cout << start;
-    int end = start + size / thread_size;
-    for (int i = start + 1; i < end; i++)
+    int i, key, j;
+    for (i = start + 1; i <= end; i++)
     {
-        int key = arr[i];
-        int j = i - 1;
+        key = arr[i];
+        j = i - 1;
         while (j >= start && arr[j] > key)
         {
             arr[j + 1] = arr[j];
-            j--;
+            j = j - 1;
         }
         arr[j + 1] = key;
     }
-    return NULL;
+}
+
+// Merge function for merge sort
+void merge(vector<int> &arr, int start, int mid, int end)
+{
+    int i, j, k;
+    int n1 = mid - start + 1;
+    int n2 = end - mid;
+
+    vector<int> L(n1), R(n2);
+
+    for (i = 0; i < n1; i++)
+        L[i] = arr[start + i];
+    for (j = 0; j < n2; j++)
+        R[j] = arr[mid + 1 + j];
+
+    i = 0;
+    j = 0;
+    k = start;
+    while (i < n1 && j < n2)
+    {
+        if (L[i] <= R[j])
+        {
+            arr[k] = L[i];
+            i++;
+        }
+        else
+        {
+            arr[k] = R[j];
+            j++;
+        }
+        k++;
+    }
+
+    while (i < n1)
+    {
+        arr[k] = L[i];
+        i++;
+        k++;
+    }
+
+    while (j < n2)
+    {
+        arr[k] = R[j];
+        j++;
+        k++;
+    }
+}
+
+// Merge sort function
+void mergeSort(vector<int> &arr, int start, int end)
+{
+    if (start < end)
+    {
+        int mid = start + (end - start) / 2;
+
+        // Create two threads to sort the two halves of the array in parallel
+        thread t1(mergeSort, ref(arr), start, mid);
+        thread t2(mergeSort, ref(arr), mid + 1, end);
+
+        // Wait for the two threads to finish
+        t1.join();
+        t2.join();
+
+        // Merge the two sorted halves
+        merge(arr, start, mid, end);
+    }
 }
 
 int main()
 {
-    ifstream in;
-    in.open("filemil.txt");
-    // Fixed size array used to store the elements in the text file.
-    // Change array type according to the type of the elements you want to read from the file
-    int element;
-    if (in.is_open())
-    {
-        int i = 0;
-        while (in >> element)
-        {
-            arr[i++] = element;
-        }
-    }
-    in.close();
+    ifstream file("file100.txt");
 
-    pthread_t P_TH[thread_size];
-    int start[thread_size], end[thread_size];
-    int step = size / thread_size;
-    int count = -step;
-    clock_t s, e;
-    s = clock();
+    if (!file)
+    {
+        cout << "Error: Unable to open file" << endl;
+        return 0;
+    }
 
-    for (int i = 0; i < thread_size; i++)
+    vector<int> arr;
+    int x;
+    while (file >> x)
     {
-        count = count + step;
-        pthread_create(&P_TH[i], NULL, insertion, (void *)(intptr_t)count);
+        arr.push_back(x);
     }
-    for (int i = 0; i < thread_size; i++)
-    {
-        pthread_join(P_TH[i], NULL);
-    }
-    e = clock();
-    cout << "Insertion Sort using Multi-threading: ";
-    for (int i = 0; i < size; i++)
+
+    file.close();
+    clock_t start, end;
+    start = clock();
+    // Create two threads to sort the two halves of the array in parallel
+    thread t1(insertionSort, ref(arr), 0, arr.size() / 2 - 1);
+    thread t2(insertionSort, ref(arr), arr.size() / 2, arr.size() - 1);
+
+    // Wait for the two threads to finish
+    t1.join();
+    t2.join();
+    end = clock();
+    // Merge the two partially sorted halves using merge sort
+    mergeSort(arr, 0, arr.size() - 1);
+
+    // Print the sorted array
+    for (int i = 0; i < arr.size(); i++)
     {
         cout << arr[i] << " ";
     }
-    cout << "\n";
-    printf("Time taken: %f", (e - s) / (double)CLOCKS_PER_SEC);
+    cout << endl;
+    printf("Time taken: %f\n", (end - start) / (double)CLOCKS_PER_SEC);
     return 0;
 }
+
